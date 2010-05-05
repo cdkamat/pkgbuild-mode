@@ -33,10 +33,8 @@
 
 ;;; Changelog:
 
-;; 0.10 
-;; made the calculation of sums generic
-;; defaults to md5sums but supports sha256sums, sha384sums, sha512sums
-;; and sha1sums as well.
+;; 0.95 
+;; made the calculation of sums generic (use makepkg.conf setting)
 
 ;; 0.9
 ;;    fixed `pkgbuild-tar' (empty directory name: thanks Stefan Husmann)
@@ -195,7 +193,7 @@ value of `user-mail-address'."
   :group 'pkgbuild)
 
 (defcustom pkgbuild-sums-command "makepkg -g 2>/dev/null"
-  "shell command to generate sums"
+  "shell command to generate *sums lines"
   :type 'string
   :group 'pkgbuild)
 
@@ -326,28 +324,9 @@ Otherwise, it saves all modified buffers without asking."
   "Find file in multible locations"
   (remove-if-not 'file-readable-p (mapcar (lambda (dir) (expand-file-name file dir)) locations)))
 
-(defun pkgbuild-sum (&rest files)
-  (if (not (null files))
-      (let* ((file (car files))
-             (abspath (pkgbuild-find-file file (split-string pkgbuild-source-directory-locations ":"))))
-        (if (null abspath)
-            (error "File %s not found in directories %s" file pkgbuild-source-directory-locations))
-        (cons (car (split-string (pkgbuild-shell-command-to-string (concat pkgbuild-hashtype "sum " (car abspath)))))
-              (apply 'pkgbuild-sum (cdr files))))))
-
-(defun pkgbuild-sums-line (&rest files)
+(defun pkgbuild-sums-line ()
   "calculate *sums=() line in PKGBUILDs"
-  (let ((sums (apply 'pkgbuild-sum files)))
-    (format (concat pkgbuild-hashtype "sums=(%s)") 
-            (apply 'concat (loop 
-                            for item in sums
-                            for position = 0 then (1+ position)
-                            for offset = (% position 2)
-                            collect (cond 
-                                     ((= position 0) (format "'%s'" item))
-                                     ((= offset 0) (format "         '%s'" item))
-                                     ((= offset 1) (format " '%s'%s" item (if (= position (1- (length sums))) "" "\\\n" )))
-                                     (t (error))))))))
+  (pkgbuild-shell-command-to-string pkgbuild-sums-command))
 
 (defun pkgbuild-update-sums-line ()
   "Update the sums line in a PKGBUILD."
@@ -357,16 +336,13 @@ Otherwise, it saves all modified buffers without asking."
       (if (pkgbuild-source-check)       ;all sources available
           (save-excursion 
             (goto-char (point-min))
-            (if (re-search-forward "sums=([^()]*)[ \f\t\r\v]*\n?" (point-max) t) ;sum line exists
-		(progn (delete-region (match-beginning 0) (match-end 0))
-		       (setq pkgbuild-hashtype (buffer-substring-no-properties (match-beginning 0) (line-beginning-position 1)))
-		       (delete-region (match-beginning 0) (line-beginning-position 1))))
+	    (while (re-search-forward "^[[:alnum:]]+sums=([^()]*)[ \f\t\r\v]*\n?" (point-max) t) ;sum line exists
+	      (delete-region (match-beginning 0) (match-end 0)))
 	    (goto-char (point-min))
 	    (if (re-search-forward "^source=([^()]*)" (point-max) t)
                 (insert "\n")
               (error "Missing source line"))
-            (insert (pkgbuild-trim-right (apply 'pkgbuild-sums-line
-                                                 (split-string (pkgbuild-shell-command-to-string "source PKGBUILD 2>/dev/null && for source in ${source[@]};do echo $source|sed 's|^.*://.*/||g';done"))))))))))
+            (insert (pkgbuild-trim-right (pkgbuild-sums-line))))))))
 
 (defun pkgbuild-about-pkgbuild-mode (&optional arg)
   "About `pkgbuild-mode'."
