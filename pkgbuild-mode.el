@@ -33,7 +33,7 @@
 
 ;;; Changelog:
 
-;; 0.95 
+;; 0.10 
 ;; made the calculation of sums generic
 ;; defaults to md5sums but supports sha256sums, sha384sums, sha512sums
 ;; and sha1sums as well.
@@ -358,8 +358,9 @@ Otherwise, it saves all modified buffers without asking."
           (save-excursion 
             (goto-char (point-min))
             (if (re-search-forward "sums=([^()]*)[ \f\t\r\v]*\n?" (point-max) t) ;sum line exists
-		(progn (setq pkgbuild-hashtype (buffer-substring-no-properties (match-beginning 0) (line-beginning-position 0)))
-		       (delete-region (line-beginning-position 0) (match-end 0))))
+		(progn (delete-region (match-beginning 0) (match-end 0))
+		       (setq pkgbuild-hashtype (buffer-substring-no-properties (match-beginning 0) (line-beginning-position 1)))
+		       (delete-region (match-beginning 0) (line-beginning-position 1))))
 	    (goto-char (point-min))
 	    (if (re-search-forward "^source=([^()]*)" (point-max) t)
                 (insert "\n")
